@@ -47,10 +47,13 @@ export default function App() {
   const [history,     setHistory]     = useState([])
   const [future,      setFuture]      = useState([])
   const [ctxMenu,     setCtxMenu]     = useState(null)
+  const [exportSettings, setExportSettings] = useState({
+    preset: 'ultrafast', crf: 23, scale: 1, audioBitrate: '128k'
+  })
 
   const videoRef  = useRef(null)
   const audioRefs = useRef({})
-  const { load, loaded, loading, progress, processVideo } = useFFmpeg()
+  const { load, loaded, loading, progress, eta, processVideo } = useFFmpeg()
 
   const activeClip    = clips.find(c=>c.id===activeClipId)||clips[0]
   const totalDuration = useMemo(()=>clips.reduce((s,c)=>s+(c.trimEnd-c.trimStart),0),[clips])
@@ -252,7 +255,7 @@ export default function App() {
     if(!loaded||!clips.length) return
     setProcessing(true); setOutputBlob(null)
     try{
-      const blob=await processVideo({clips,texts,filters,audioSettings,audioTracks})
+      const blob=await processVideo({clips,texts,filters,audioSettings,audioTracks,exportSettings})
       setOutputBlob(blob); setActiveTab('export')
     }catch(e){ console.error(e); alert('エクスポートエラー: '+e.message) }
     finally{ setProcessing(false) }
@@ -356,7 +359,7 @@ export default function App() {
             {activeTab==='image'   && <ImagePanel images={images} setImages={setImages} selectedId={selItem?.type==='image'?selItem.id:null} setSelectedId={id=>setSelItem(id?{type:'image',id}:null)} currentTime={currentTime} snap={snap} />}
             {activeTab==='filters' && <FiltersPanel filters={filters} onChange={setFilters} />}
             {activeTab==='audio'   && <AudioPanel audio={audioSettings} onChange={setAudioSettings} audioTracks={audioTracks} setAudioTracks={setAudioTracks} onAdd={addAudioFiles} snap={snap} />}
-            {activeTab==='export'  && <ExportPanel loaded={loaded} loading={loading} onLoad={load} processing={processing} progress={progress} onExport={handleExport} outputBlob={outputBlob} onDownload={()=>{const a=document.createElement('a');a.href=URL.createObjectURL(outputBlob);a.download=`cutlab_${Date.now()}.mp4`;a.click()}} clipsCount={clips.length} />}
+            {activeTab==='export'  && <ExportPanel loaded={loaded} loading={loading} onLoad={load} processing={processing} progress={progress} eta={eta} onExport={handleExport} outputBlob={outputBlob} onDownload={()=>{const a=document.createElement('a');a.href=URL.createObjectURL(outputBlob);a.download=`cutlab_${Date.now()}.mp4`;a.click()}} clipsCount={clips.length} exportSettings={exportSettings} setExportSettings={setExportSettings} />}
           </div>
         </div>
       </div>
@@ -921,9 +924,29 @@ function AudioPanel({audio,onChange,audioTracks,setAudioTracks,onAdd,snap}){
   )
 }
 
-function ExportPanel({loaded,loading,onLoad,processing,progress,onExport,outputBlob,onDownload,clipsCount}){
+function ExportPanel({loaded,loading,onLoad,processing,progress,eta,onExport,outputBlob,onDownload,clipsCount,exportSettings,setExportSettings}){
+  const upd=(k,v)=>setExportSettings(s=>({...s,[k]:v}))
+
+  const presets=[
+    {value:'ultrafast', label:'超高速',   desc:'最速・ファイル大'},
+    {value:'superfast', label:'高速',     desc:'速い・やや小さい'},
+    {value:'veryfast',  label:'やや速い', desc:'バランス良'},
+    {value:'faster',    label:'標準',     desc:'品質重視'},
+    {value:'medium',    label:'高品質',   desc:'遅い・小さい'},
+  ]
+  const scales=[
+    {value:1,    label:'オリジナル'},
+    {value:0.75, label:'75%'},
+    {value:0.5,  label:'50%'},
+    {value:0.25, label:'25%'},
+  ]
+
+  // Estimate speed mode
+  const isCopyMode = exportSettings.crf===0
+
   return(
     <div style={{display:'flex',flexDirection:'column',gap:12}} className="anim-fade">
+      {/* FFmpeg status */}
       <div style={{padding:'10px 12px',background:'var(--bg-2)',borderRadius:'var(--r)',border:`1px solid ${loaded?'var(--green)':'var(--border)'}`}}>
         <div style={{display:'flex',alignItems:'center',gap:7,marginBottom:4}}>
           <div style={{width:7,height:7,borderRadius:'50%',background:loaded?'var(--green)':loading?'#ffcc00':'var(--text-2)',boxShadow:loaded?'0 0 6px var(--green)':'none'}}/>
@@ -932,25 +955,98 @@ function ExportPanel({loaded,loading,onLoad,processing,progress,onExport,outputB
         {!loaded&&!loading&&<button className="btn btn-ghost" style={{width:'100%',justifyContent:'center',marginTop:6}} onClick={onLoad}>⚡ 読み込む</button>}
         {loading&&<div style={{height:3,background:'var(--bg-4)',borderRadius:2,marginTop:8,overflow:'hidden'}}><div style={{height:'100%',width:'50%',background:'#ffcc00',animation:'indeterminate 1.5s ease-in-out infinite'}}/></div>}
       </div>
-      <div style={{fontFamily:'var(--mono)',fontSize:11,color:'var(--text-2)',lineHeight:1.8,padding:'8px 10px',background:'var(--bg-2)',borderRadius:'var(--r)',border:'1px solid var(--border)'}}>
-        <div style={{color:'var(--text-1)',fontWeight:500,marginBottom:4}}>出力仕様</div>
-        <div>MP4 / H.264 + AAC 128k</div>
-        <div>クリップ数: {clipsCount}</div>
+
+      {/* ── Speed / Quality settings ── */}
+      <div style={{padding:'12px',background:'var(--bg-2)',borderRadius:'var(--r)',border:'1px solid var(--border)',display:'flex',flexDirection:'column',gap:10}}>
+        <div style={{fontSize:11,fontWeight:700,color:'var(--text-1)',textTransform:'uppercase',letterSpacing:'0.04em',marginBottom:2}}>出力設定</div>
+
+        {/* Preset */}
+        <div>
+          <span className="label">エンコード速度</span>
+          <div style={{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:4}}>
+            {presets.map(p=>(
+              <button key={p.value} onClick={()=>upd('preset',p.value)}
+                title={p.desc}
+                style={{padding:'5px 2px',fontSize:10,fontWeight:600,borderRadius:'var(--r)',background:exportSettings.preset===p.value?'var(--accent-bg)':'var(--bg-3)',color:exportSettings.preset===p.value?'var(--accent)':'var(--text-1)',border:`1px solid ${exportSettings.preset===p.value?'var(--accent)':'var(--border)'}`}}>
+                {p.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* CRF slider */}
+        <div>
+          <div style={{display:'flex',justifyContent:'space-between'}}>
+            <span className="label">画質 (CRF)</span>
+            <span style={{fontFamily:'var(--mono)',fontSize:10,color:exportSettings.crf<=18?'var(--green)':exportSettings.crf>=28?'var(--red)':'var(--accent)'}}>
+              {exportSettings.crf} — {exportSettings.crf<=18?'高品質':exportSettings.crf>=28?'低品質':'標準'}
+            </span>
+          </div>
+          <input type="range" min={12} max={35} step={1} value={exportSettings.crf} onChange={e=>upd('crf',+e.target.value)}/>
+          <div style={{display:'flex',justifyContent:'space-between',marginTop:2}}>
+            <span style={{fontFamily:'var(--mono)',fontSize:9,color:'var(--green)'}}>高品質</span>
+            <span style={{fontFamily:'var(--mono)',fontSize:9,color:'var(--red)'}}>軽量</span>
+          </div>
+        </div>
+
+        {/* Resolution */}
+        <div>
+          <span className="label">解像度</span>
+          <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:4}}>
+            {scales.map(s=>(
+              <button key={s.value} onClick={()=>upd('scale',s.value)}
+                style={{padding:'5px 2px',fontSize:10,fontWeight:600,borderRadius:'var(--r)',background:exportSettings.scale===s.value?'var(--accent-bg)':'var(--bg-3)',color:exportSettings.scale===s.value?'var(--accent)':'var(--text-1)',border:`1px solid ${exportSettings.scale===s.value?'var(--accent)':'var(--border)'}`}}>
+                {s.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Audio bitrate */}
+        <div>
+          <span className="label">音声ビットレート</span>
+          <select value={exportSettings.audioBitrate} onChange={e=>upd('audioBitrate',e.target.value)} style={{width:'100%',fontSize:12}}>
+            {['64k','96k','128k','192k','256k','320k'].map(b=><option key={b} value={b}>{b}</option>)}
+          </select>
+        </div>
+
+        {/* Speed estimate badge */}
+        <div style={{padding:'7px 10px',background:'var(--bg-3)',borderRadius:'var(--r)',fontFamily:'var(--mono)',fontSize:10,color:'var(--text-2)',lineHeight:1.7}}>
+          <span style={{color:'var(--text-1)'}}>出力モード: </span>
+          {exportSettings.scale===1&&exportSettings.crf===23&&exportSettings.preset==='ultrafast'
+            ? <span style={{color:'var(--accent)'}}>⚡ 最速モード</span>
+            : <span style={{color:'var(--blue)'}}>🎬 高品質モード</span>
+          }
+          <br/>フォーマット: MP4 / H.264 + AAC {exportSettings.audioBitrate}
+        </div>
       </div>
+
+      {/* GPU note */}
+      <div style={{padding:'8px 10px',background:'rgba(74,143,255,0.07)',border:'1px solid rgba(74,143,255,0.2)',borderRadius:'var(--r)',fontFamily:'var(--mono)',fontSize:10,color:'var(--text-2)',lineHeight:1.7}}>
+        ℹ️ ブラウザのWASMはCPU処理のみです。<br/>
+        GPUエンコードはネイティブアプリが必要です。<br/>
+        高速化には <span style={{color:'var(--accent)'}}>超高速 + CRF高め + 解像度↓</span> が有効です。
+      </div>
+
+      {/* Progress */}
       {processing&&(
         <div>
           <div style={{display:'flex',justifyContent:'space-between',marginBottom:5}}>
             <span style={{fontSize:11}}>処理中...</span>
-            <span style={{fontFamily:'var(--mono)',fontSize:11,color:'var(--accent)'}}>{progress}%</span>
+            <span style={{fontFamily:'var(--mono)',fontSize:11,color:'var(--accent)'}}>
+              {progress}%{eta!=null?` · 残り約${eta}秒`:''}
+            </span>
           </div>
           <div style={{height:5,background:'var(--bg-4)',borderRadius:3,overflow:'hidden'}}>
-            <div style={{height:'100%',width:`${progress}%`,background:'var(--accent)',transition:'width 0.3s'}}/>
+            <div style={{height:'100%',width:`${progress}%`,background:'linear-gradient(90deg,var(--accent),#b8ff00)',transition:'width 0.3s',boxShadow:'0 0 8px rgba(232,255,71,0.4)'}}/>
           </div>
         </div>
       )}
-      <button className="btn btn-accent" style={{width:'100%',justifyContent:'center',padding:'10px'}} onClick={onExport} disabled={!loaded||processing||clipsCount===0}>
-        {processing?<><span className="anim-spin">⟳</span>{progress}%</>:'⚙ エクスポート'}
+
+      <button className="btn btn-accent" style={{width:'100%',justifyContent:'center',padding:'11px',fontSize:13}} onClick={onExport} disabled={!loaded||processing||clipsCount===0}>
+        {processing?<><span className="anim-spin">⟳</span>{progress}%</>:'⚙ エクスポート開始'}
       </button>
+
       {outputBlob&&!processing&&(
         <div className="anim-fade">
           <div style={{padding:'10px 12px',background:'rgba(46,204,113,0.08)',border:'1px solid var(--green)',borderRadius:'var(--r)',marginBottom:8}}>
