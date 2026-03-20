@@ -1,6 +1,7 @@
+cat > src/hooks/useFFmpeg.js << 'EOF'
 import { useState, useRef, useCallback } from 'react'
 import { FFmpeg } from '@ffmpeg/ffmpeg'
-import { fetchFile, toBlobURL } from '@ffmpeg/util'
+import { fetchFile } from '@ffmpeg/util'
 
 export function useFFmpeg() {
   const ffmpegRef = useRef(null)
@@ -23,11 +24,11 @@ export function useFFmpeg() {
         setLog(message)
       })
 
-      const baseURL = 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.6/dist/umd'
-await ffmpeg.load({
-  coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
-  wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
-})
+      await ffmpeg.load({
+        coreURL: 'https://cdn.jsdelivr.net/npm/@ffmpeg/core-mt@0.12.6/dist/umd/ffmpeg-core.js',
+        wasmURL: 'https://cdn.jsdelivr.net/npm/@ffmpeg/core-mt@0.12.6/dist/umd/ffmpeg-core.wasm',
+        workerURL: 'https://cdn.jsdelivr.net/npm/@ffmpeg/core-mt@0.12.6/dist/umd/ffmpeg-core.worker.js',
+      })
 
       setLoaded(true)
     } catch (e) {
@@ -48,14 +49,12 @@ await ffmpeg.load({
 
     const args = ['-i', inputName]
 
-    // Trim
     if (options.trim) {
       const { start, end } = options.trim
       args.push('-ss', String(start))
       if (end > 0) args.push('-to', String(end))
     }
 
-    // Filters
     const vfFilters = []
 
     if (options.filters) {
@@ -68,7 +67,6 @@ await ffmpeg.load({
       }
     }
 
-    // Text overlay
     if (options.text && options.text.content) {
       const { content, x, y, fontSize, color, startTime, endTime } = options.text
       const safeText = content.replace(/'/g, "\\'").replace(/:/g, "\\:")
@@ -84,7 +82,6 @@ await ffmpeg.load({
       args.push('-vf', vfFilters.join(','))
     }
 
-    // Audio
     if (options.mute) {
       args.push('-an')
     } else if (options.volume !== undefined && options.volume !== 1) {
@@ -101,7 +98,6 @@ await ffmpeg.load({
     const data = await ffmpeg.readFile(outputName)
     const blob = new Blob([data.buffer], { type: 'video/mp4' })
 
-    // Cleanup
     await ffmpeg.deleteFile(inputName)
     await ffmpeg.deleteFile(outputName)
 
@@ -110,3 +106,4 @@ await ffmpeg.load({
 
   return { load, loaded, loading, progress, log, processVideo }
 }
+EOF
