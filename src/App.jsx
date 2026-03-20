@@ -502,7 +502,7 @@ function MultiTrackTimeline({ clips, setClips, texts, setTexts, images, setImage
   const handleRulerClick = (e) => {
     if (!scrollRef.current) return
     const rect = scrollRef.current.getBoundingClientRect()
-    const x = e.clientX - rect.left + scrollRef.current.scrollLeft - LABEL_W
+    const x = e.clientX - rect.left + scrollRef.current.scrollLeft
     onSeek(Math.max(0, x / zoom))
   }
 
@@ -555,7 +555,7 @@ function MultiTrackTimeline({ clips, setClips, texts, setTexts, images, setImage
     window.addEventListener('mouseup', onUp)
   }
 
-  const playheadX = LABEL_W + currentTime * zoom
+  const playheadX = currentTime * zoom
   const canvasW = Math.max((totalDuration + 5) * zoom + LABEL_W + 100, 800)
 
   return (
@@ -578,9 +578,8 @@ function MultiTrackTimeline({ clips, setClips, texts, setTexts, images, setImage
           {/* Track: Video */}
           <TrackRow label="動画" color="var(--blue)" onAdd={onAddVideo} accept="video/*">
             {clips.map((clip, idx) => {
-              // Each clip sits right after the previous one (sequential), no per-clip startTime offset
               const offset = clips.slice(0,idx).reduce((s,c)=>s+(c.trimEnd-c.trimStart),0)
-              const left = LABEL_W + offset * zoom
+              const left = offset * zoom
               const w = Math.max((clip.trimEnd - clip.trimStart) * zoom, 4)
               const isSel = selectedItem?.id === clip.id
               return (
@@ -597,7 +596,7 @@ function MultiTrackTimeline({ clips, setClips, texts, setTexts, images, setImage
           {/* Track: Text */}
           <TrackRow label="字幕" color="var(--accent)" onAdd={() => { saveHistory(); setTexts(p=>[...p,{id:crypto.randomUUID(),content:'テキスト',x:50,y:85,fontSize:36,color:'#ffffff',startTime:currentTime,endTime:currentTime+3}]) }}>
             {texts.map(t => {
-              const left = LABEL_W + t.startTime * zoom
+              const left = t.startTime * zoom
               const w = Math.max((t.endTime - t.startTime) * zoom, 20)
               return (
                 <TrackItem key={t.id} left={left} width={w} color="var(--accent)" selected={selectedItem?.id===t.id}
@@ -613,7 +612,7 @@ function MultiTrackTimeline({ clips, setClips, texts, setTexts, images, setImage
           {/* Track: Image */}
           <TrackRow label="画像" color="var(--orange)" onAdd={onAddImage} accept="image/*">
             {images.map(img => {
-              const left = LABEL_W + img.startTime * zoom
+              const left = img.startTime * zoom
               const w = Math.max((img.endTime - img.startTime) * zoom, 20)
               return (
                 <TrackItem key={img.id} left={left} width={w} color="var(--orange)" selected={selectedItem?.id===img.id}
@@ -629,7 +628,7 @@ function MultiTrackTimeline({ clips, setClips, texts, setTexts, images, setImage
           {/* Track: Audio */}
           <TrackRow label="音声" color="var(--green)" onAdd={onAddAudio} accept="audio/*">
             {audioTracks.map(track => {
-              const left = LABEL_W + (track.startTime||0) * zoom
+              const left = (track.startTime||0) * zoom
               const w = Math.max((track.duration||10) * zoom, 40)
               return (
                 <TrackItem key={track.id} left={left} width={w} color="var(--green)" selected={selectedItem?.id===track.id}
