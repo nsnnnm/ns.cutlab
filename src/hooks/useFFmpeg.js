@@ -23,11 +23,10 @@ export function useFFmpeg() {
         setLog(message)
       })
 
-      const baseURL = 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.6/dist/umd'
       await ffmpeg.load({
-        coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
-        wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
-      })
+  coreURL: await toBlobURL('/ffmpeg-core.js', 'text/javascript'),
+  wasmURL: await toBlobURL('/ffmpeg-core.wasm', 'application/wasm'),
+})
 
       setLoaded(true)
     } catch (e) {
