@@ -18,22 +18,18 @@
   --green: #2ecc71;
   --blue: #4a8fff;
   --orange: #ff9f43;
+  --purple: #a29bfe;
   --font: 'Syne', sans-serif;
   --mono: 'DM Mono', monospace;
   --r: 4px;
   --r2: 8px;
-  --t: 140ms cubic-bezier(0.4,0,0.2,1);
+  --t: 130ms cubic-bezier(0.4,0,0.2,1);
 }
 
 html, body, #root {
-  height: 100%;
-  background: var(--bg-0);
-  color: var(--text-0);
-  font-family: var(--font);
-  font-size: 13px;
-  line-height: 1.5;
-  -webkit-font-smoothing: antialiased;
-  overflow: hidden;
+  height: 100%; background: var(--bg-0); color: var(--text-0);
+  font-family: var(--font); font-size: 13px; line-height: 1.5;
+  -webkit-font-smoothing: antialiased; overflow: hidden;
 }
 
 ::-webkit-scrollbar { width: 5px; height: 5px; }
@@ -43,28 +39,27 @@ html, body, #root {
 button { font-family: var(--font); cursor: pointer; border: none; outline: none; transition: var(--t); }
 input, select, textarea { font-family: var(--mono); background: var(--bg-3); border: 1px solid var(--border); color: var(--text-0); border-radius: var(--r); padding: 5px 8px; font-size: 12px; transition: var(--t); }
 input:focus, select:focus, textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-bg); }
-
 input[type=range] { -webkit-appearance: none; appearance: none; background: transparent; border: none; padding: 0; cursor: pointer; width: 100%; }
 input[type=range]::-webkit-slider-track { height: 3px; background: var(--bg-4); border-radius: 2px; }
 input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 12px; height: 12px; border-radius: 50%; background: var(--accent); margin-top: -4.5px; }
+input[type=color] { cursor: pointer; }
 
 .btn { display: inline-flex; align-items: center; gap: 5px; padding: 6px 12px; font-size: 12px; font-weight: 600; border-radius: var(--r); letter-spacing: 0.02em; }
 .btn-accent { background: var(--accent); color: #000; }
 .btn-accent:hover { background: var(--accent-dim); }
-.btn-accent:disabled { opacity: 0.4; cursor: not-allowed; }
+.btn-accent:disabled { opacity: 0.35; cursor: not-allowed; }
 .btn-ghost { background: transparent; color: var(--text-1); border: 1px solid var(--border); }
 .btn-ghost:hover { border-color: var(--border-hi); color: var(--text-0); background: var(--bg-3); }
-.btn-icon { width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; border-radius: var(--r); background: var(--bg-3); color: var(--text-1); font-size: 14px; }
+.btn-icon { width: 26px; height: 26px; display: flex; align-items: center; justify-content: center; border-radius: var(--r); background: var(--bg-3); color: var(--text-1); font-size: 13px; flex-shrink: 0; }
 .btn-icon:hover { background: var(--bg-4); color: var(--text-0); }
-.btn-danger { background: transparent; color: var(--red); border: 1px solid rgba(255,69,96,0.25); }
-.btn-danger:hover { background: rgba(255,69,96,0.1); border-color: var(--red); }
+.btn-icon.active { background: var(--accent-bg); color: var(--accent); border: 1px solid rgba(232,255,71,0.3); }
+.label { font-family: var(--mono); font-size: 10px; color: var(--text-2); text-transform: uppercase; letter-spacing: 0.08em; display: block; margin-bottom: 4px; }
+.divider { height: 1px; background: var(--border); margin: 10px 0; }
 
-.label { font-family: var(--mono); font-size: 10px; color: var(--text-2); text-transform: uppercase; letter-spacing: 0.08em; display: block; margin-bottom: 5px; }
-.divider { height: 1px; background: var(--border); margin: 12px 0; }
-
-@keyframes fadeIn { from { opacity:0; transform:translateY(4px); } to { opacity:1; transform:none; } }
+@keyframes fadeIn { from { opacity:0; transform:translateY(3px); } to { opacity:1; transform:none; } }
 @keyframes spin { to { transform: rotate(360deg); } }
-@keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.4; } }
-.anim-fade { animation: fadeIn 0.2s ease; }
+@keyframes pulse { 0%,100%{opacity:1}50%{opacity:0.4} }
+@keyframes indeterminate { 0%{transform:translateX(-100%)} 100%{transform:translateX(300%)} }
+.anim-fade { animation: fadeIn 0.18s ease; }
 .anim-spin { animation: spin 1s linear infinite; display: inline-block; }
 .anim-pulse { animation: pulse 2s ease-in-out infinite; }
