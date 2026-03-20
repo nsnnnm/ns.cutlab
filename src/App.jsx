@@ -374,6 +374,7 @@ export default function App() {
             selectedItem={selectedItem} setSelectedItem={setSelectedItem}
             onAddVideo={addVideoFiles} onAddAudio={addAudioFiles} onAddImage={addImageFiles}
             saveHistory={saveHistory}
+            onSplit={splitClip}
           />
         </div>
 
@@ -471,8 +472,9 @@ function PlaybackBar({ isPlaying, onTogglePlay, currentTime, totalDuration, onSe
 }
 
 // ── MultiTrackTimeline ────────────────────────────────────────
-function MultiTrackTimeline({ clips, setClips, texts, setTexts, images, setImages, audioTracks, setAudioTracks, activeClipId, setActiveClipId, currentTime, totalDuration, onSeek, zoom, selectedItem, setSelectedItem, onAddVideo, onAddAudio, onAddImage, saveHistory }) {
+function MultiTrackTimeline({ clips, setClips, texts, setTexts, images, setImages, audioTracks, setAudioTracks, activeClipId, setActiveClipId, currentTime, totalDuration, onSeek, zoom, selectedItem, setSelectedItem, onAddVideo, onAddAudio, onAddImage, saveHistory, onSplit }) {
   const scrollRef = useRef(null)
+  const [ctxMenu, setCtxMenu] = useState(null) // {x,y,items}
   const rulerTicks = Math.ceil(totalDuration) + 2
 
   // ── Wheel → horizontal scroll ──────────────────────────────
@@ -555,7 +557,7 @@ function MultiTrackTimeline({ clips, setClips, texts, setTexts, images, setImage
     window.addEventListener('mouseup', onUp)
   }
 
-  const playheadX = currentTime * zoom
+  const playheadX = LABEL_W + currentTime * zoom
   const canvasW = Math.max((totalDuration + 5) * zoom + LABEL_W + 100, 800)
 
   return (
@@ -564,9 +566,11 @@ function MultiTrackTimeline({ clips, setClips, texts, setTexts, images, setImage
         <div style={{ width:canvasW, minHeight:'100%', position:'relative' }}>
 
           {/* Time ruler */}
-          <div onClick={handleRulerClick} style={{ height:20, position:'sticky', top:0, background:'var(--bg-1)', borderBottom:'1px solid var(--border)', zIndex:20, display:'flex', cursor:'pointer' }}>
-            <div style={{ width:LABEL_W, flexShrink:0, borderRight:'1px solid var(--border)' }} />
-            <div style={{ flex:1, position:'relative' }}>
+          <div style={{ height:20, position:'sticky', top:0, zIndex:20, display:'flex', background:'var(--bg-1)', borderBottom:'1px solid var(--border)' }}>
+            {/* Label spacer - sticky */}
+            <div style={{ width:LABEL_W, flexShrink:0, borderRight:'1px solid var(--border)', position:'sticky', left:0, background:'var(--bg-1)', zIndex:21 }} />
+            {/* Ruler ticks - clickable */}
+            <div style={{ position:'relative', flex:1, cursor:'pointer' }} onClick={handleRulerClick}>
               {Array.from({length:rulerTicks}).map((_,i) => (
                 <div key={i} style={{ position:'absolute', left:i*zoom, top:0, bottom:0, borderLeft:'1px solid var(--border-hi)', paddingLeft:3, display:'flex', alignItems:'center' }}>
                   <span style={{ fontFamily:'var(--mono)', fontSize:9, color:'var(--text-2)', userSelect:'none' }}>{fmt(i)}</span>
@@ -588,6 +592,22 @@ function MultiTrackTimeline({ clips, setClips, texts, setTexts, images, setImage
                   onMouseDown={e => { setSelectedItem({type:'clip',id:clip.id}); setActiveClipId(clip.id); startDrag(e,'clip',clip.id,'startTime', offset) }}
                   onResizeRight={e => startResize(e,'clip',clip.id,'trimEnd')}
                   onDelete={() => { saveHistory(); setClips(p=>p.filter(c=>c.id!==clip.id)) }}
+                  onContextMenu={e => {
+                    e.preventDefault()
+                    setSelectedItem({type:'clip',id:clip.id}); setActiveClipId(clip.id)
+                    setCtxMenu({ x:e.clientX, y:e.clientY, items:[
+                      { icon:'✂', label:'ここで分割', shortcut:'S', action: onSplit },
+                      { icon:'⬅', label:'IN点をここに', action: () => setClips(p=>p.map(c=>c.id===clip.id?{...c,trimStart:currentTime}:c)) },
+                      { icon:'➡', label:'OUT点をここに', action: () => setClips(p=>p.map(c=>c.id===clip.id?{...c,trimEnd:currentTime}:c)) },
+                      '---',
+                      { icon:'📋', label:'複製', action: () => { saveHistory(); setClips(p=>{const i=p.findIndex(c=>c.id===clip.id); const n=[...p]; n.splice(i+1,0,{...clip,id:crypto.randomUUID()}); return n}) } },
+                      { icon:'🔄', label:'反転（未対応）', action: ()=>{} },
+                      '---',
+                      { icon:'🔇', label:'このクリップをミュート', action: () => setClips(p=>p.map(c=>c.id===clip.id?{...c,muted:!c.muted}:c)) },
+                      '---',
+                      { icon:'🗑', label:'削除', shortcut:'Del', danger:true, action: () => { saveHistory(); setClips(p=>p.filter(c=>c.id!==clip.id)) } },
+                    ]})
+                  }}
                 />
               )
             })}
@@ -604,6 +624,17 @@ function MultiTrackTimeline({ clips, setClips, texts, setTexts, images, setImage
                   onMouseDown={e => { setSelectedItem({type:'text',id:t.id}); setActiveTab_cb('text'); startDrag(e,'text',t.id,'startTime', t.startTime) }}
                   onResizeRight={e => startResize(e,'text',t.id,'endTime')}
                   onDelete={() => { saveHistory(); setTexts(p=>p.filter(x=>x.id!==t.id)) }}
+                  onContextMenu={e => {
+                    e.preventDefault()
+                    setSelectedItem({type:'text',id:t.id})
+                    setCtxMenu({ x:e.clientX, y:e.clientY, items:[
+                      { icon:'📋', label:'複製', action: () => { saveHistory(); setTexts(p=>[...p,{...t,id:crypto.randomUUID(),startTime:t.startTime+0.1}]) } },
+                      { icon:'⏱', label:'現在地を開始点に', action: () => setTexts(p=>p.map(x=>x.id===t.id?{...x,startTime:currentTime}:x)) },
+                      { icon:'⏱', label:'現在地を終了点に', action: () => setTexts(p=>p.map(x=>x.id===t.id?{...x,endTime:currentTime}:x)) },
+                      '---',
+                      { icon:'🗑', label:'削除', danger:true, action: () => { saveHistory(); setTexts(p=>p.filter(x=>x.id!==t.id)) } },
+                    ]})
+                  }}
                 />
               )
             })}
@@ -620,6 +651,17 @@ function MultiTrackTimeline({ clips, setClips, texts, setTexts, images, setImage
                   onMouseDown={e => { setSelectedItem({type:'image',id:img.id}); startDrag(e,'image',img.id,'startTime', img.startTime) }}
                   onResizeRight={e => startResize(e,'image',img.id,'endTime')}
                   onDelete={() => { saveHistory(); setImages(p=>p.filter(x=>x.id!==img.id)) }}
+                  onContextMenu={e => {
+                    e.preventDefault()
+                    setSelectedItem({type:'image',id:img.id})
+                    setCtxMenu({ x:e.clientX, y:e.clientY, items:[
+                      { icon:'⏱', label:'現在地を開始点に', action: () => setImages(p=>p.map(x=>x.id===img.id?{...x,startTime:currentTime}:x)) },
+                      { icon:'⏱', label:'現在地を終了点に', action: () => setImages(p=>p.map(x=>x.id===img.id?{...x,endTime:currentTime}:x)) },
+                      { icon:'📋', label:'複製', action: () => { saveHistory(); setImages(p=>[...p,{...img,id:crypto.randomUUID()}]) } },
+                      '---',
+                      { icon:'🗑', label:'削除', danger:true, action: () => { saveHistory(); setImages(p=>p.filter(x=>x.id!==img.id)) } },
+                    ]})
+                  }}
                 />
               )
             })}
@@ -636,6 +678,18 @@ function MultiTrackTimeline({ clips, setClips, texts, setTexts, images, setImage
                   onMouseDown={e => { setSelectedItem({type:'audio',id:track.id}); startDrag(e,'audio',track.id,'startTime', track.startTime||0) }}
                   onResizeRight={e => startResize(e,'audio',track.id,'duration')}
                   onDelete={() => { saveHistory(); setAudioTracks(p=>p.filter(x=>x.id!==track.id)) }}
+                  onContextMenu={e => {
+                    e.preventDefault()
+                    setSelectedItem({type:'audio',id:track.id})
+                    setCtxMenu({ x:e.clientX, y:e.clientY, items:[
+                      { icon:'⏱', label:'現在地を開始点に', action: () => setAudioTracks(p=>p.map(x=>x.id===track.id?{...x,startTime:currentTime}:x)) },
+                      { icon:'🔊', label:'音量 +10%', action: () => setAudioTracks(p=>p.map(x=>x.id===track.id?{...x,volume:Math.min(1,(x.volume||0.8)+0.1)}:x)) },
+                      { icon:'🔉', label:'音量 -10%', action: () => setAudioTracks(p=>p.map(x=>x.id===track.id?{...x,volume:Math.max(0,(x.volume||0.8)-0.1)}:x)) },
+                      { icon:'📋', label:'複製', action: () => { saveHistory(); setAudioTracks(p=>[...p,{...track,id:crypto.randomUUID()}]) } },
+                      '---',
+                      { icon:'🗑', label:'削除', danger:true, action: () => { saveHistory(); setAudioTracks(p=>p.filter(x=>x.id!==track.id)) } },
+                    ]})
+                  }}
                 />
               )
             })}
@@ -647,6 +701,7 @@ function MultiTrackTimeline({ clips, setClips, texts, setTexts, images, setImage
           </div>
         </div>
       </div>
+      {ctxMenu && <ContextMenu x={ctxMenu.x} y={ctxMenu.y} items={ctxMenu.items} onClose={() => setCtxMenu(null)} />}
     </div>
   )
 }
@@ -657,6 +712,7 @@ let setActiveTab_cb = () => {}
 function TrackRow({ label, color, children, onAdd, accept }) {
   return (
     <div style={{ display:'flex', height:TRACK_H, borderBottom:'1px solid var(--border)', position:'relative' }}>
+      {/* Sticky label */}
       <div style={{ width:LABEL_W, flexShrink:0, display:'flex', alignItems:'center', justifyContent:'space-between', paddingLeft:8, paddingRight:4, borderRight:'1px solid var(--border)', background:'var(--bg-1)', position:'sticky', left:0, zIndex:10 }}>
         <span style={{ fontSize:10, color, fontWeight:700 }}>{label}</span>
         {accept ? (
@@ -667,23 +723,66 @@ function TrackRow({ label, color, children, onAdd, accept }) {
           <button onClick={onAdd} style={{ width:16, height:16, borderRadius:3, background:'rgba(255,255,255,0.06)', color:'var(--text-2)', fontSize:12, display:'flex', alignItems:'center', justifyContent:'center' }}>+</button>
         )}
       </div>
-      <div style={{ flex:1, position:'relative' }}>{children}</div>
+      {/* Track content - starts after label */}
+      <div style={{ position:'relative', flex:1 }}>{children}</div>
     </div>
   )
 }
 
-function TrackItem({ left, width, color, selected, label, thumbnail, onMouseDown, onResizeRight, onDelete }) {
+function TrackItem({ left, width, color, selected, label, thumbnail, onMouseDown, onResizeRight, onDelete, onContextMenu }) {
   return (
     <div
       onMouseDown={onMouseDown}
+      onContextMenu={onContextMenu}
       style={{ position:'absolute', left, top:3, height:TRACK_H-6, width, borderRadius:4, border:`1.5px solid ${selected?color:'rgba(255,255,255,0.15)'}`, background:selected?'rgba(255,255,255,0.1)':'rgba(255,255,255,0.05)', cursor:'grab', overflow:'hidden', display:'flex', alignItems:'center', userSelect:'none' }}
     >
       {thumbnail && <img src={thumbnail} alt="" draggable={false} style={{ height:'100%', width:'auto', opacity:0.4, flexShrink:0, pointerEvents:'none' }} />}
       <span style={{ fontFamily:'var(--mono)', fontSize:9, color, padding:'0 5px', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', flex:1, pointerEvents:'none' }}>{label}</span>
-      {/* Right resize handle */}
       <div onMouseDown={onResizeRight} style={{ position:'absolute', right:0, top:0, bottom:0, width:8, cursor:'ew-resize', background:'rgba(255,255,255,0.12)', borderRadius:'0 4px 4px 0' }} />
-      {/* Delete */}
       <button onMouseDown={e=>e.stopPropagation()} onClick={onDelete} style={{ position:'absolute', top:2, right:10, width:13, height:13, borderRadius:'50%', background:'rgba(255,69,96,0.8)', color:'#fff', fontSize:8, display:'flex', alignItems:'center', justifyContent:'center', zIndex:5 }}>×</button>
+    </div>
+  )
+}
+
+// ── ContextMenu ───────────────────────────────────────────────
+function ContextMenu({ x, y, items, onClose }) {
+  useEffect(() => {
+    const handler = () => onClose()
+    window.addEventListener('mousedown', handler)
+    return () => window.removeEventListener('mousedown', handler)
+  }, [onClose])
+
+  return (
+    <div
+      onMouseDown={e => e.stopPropagation()}
+      style={{
+        position:'fixed', left:x, top:y, zIndex:9999,
+        background:'var(--bg-2)', border:'1px solid var(--border-hi)',
+        borderRadius:6, padding:'4px 0', minWidth:160,
+        boxShadow:'0 8px 32px rgba(0,0,0,0.5)',
+        animation:'fadeIn 0.1s ease',
+      }}
+    >
+      {items.map((item, i) =>
+        item === '---' ? (
+          <div key={i} style={{ height:1, background:'var(--border)', margin:'3px 0' }} />
+        ) : (
+          <button key={i} onClick={() => { item.action(); onClose() }} style={{
+            display:'flex', alignItems:'center', gap:8,
+            width:'100%', padding:'7px 14px',
+            background:'transparent', color: item.danger ? 'var(--red)' : 'var(--text-0)',
+            fontSize:12, fontWeight:500, textAlign:'left',
+            borderRadius:0,
+          }}
+            onMouseOver={e => e.currentTarget.style.background='var(--bg-3)'}
+            onMouseOut={e => e.currentTarget.style.background='transparent'}
+          >
+            <span style={{ fontSize:13, width:16 }}>{item.icon}</span>
+            {item.label}
+            {item.shortcut && <span style={{ marginLeft:'auto', fontFamily:'var(--mono)', fontSize:10, color:'var(--text-2)' }}>{item.shortcut}</span>}
+          </button>
+        )
+      )}
     </div>
   )
 }
