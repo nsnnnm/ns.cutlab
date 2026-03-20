@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback } from 'react'
-import { FFmpeg } from '@ffmpeg/ffmpeg'
+import { createFFmpeg, fetchFile } from '@ffmpeg/ffmpeg'
 
 export function useFFmpeg() {
   const ffmpegRef = useRef(null)
@@ -12,24 +12,13 @@ export function useFFmpeg() {
     if (loaded || loading) return
     setLoading(true)
     try {
-      const ffmpeg = new FFmpeg()
+      const ffmpeg = createFFmpeg({
+        corePath: 'https://unpkg.com/@ffmpeg/core@0.11.0/dist/ffmpeg-core.js',
+        progress: ({ ratio }) => setProgress(Math.round(ratio * 100)),
+        log: true,
+      })
+      await ffmpeg.load()
       ffmpegRef.current = ffmpeg
-
-      ffmpeg.on('progress', ({ progress }) => {
-        setProgress(Math.round(progress * 100))
-      })
-      ffmpeg.on('log', ({ message }) => {
-        setLog(message)
-      })
-
-      const { toBlobURL } = await import('@ffmpeg/util')
-const baseURL = 'https://cdn.jsdelivr.net/npm/@ffmpeg/core-mt@0.12.6/dist/umd'
-await ffmpeg.load({
-  coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
-  wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
-  workerURL: await toBlobURL(`${baseURL}/ffmpeg-core.worker.js`, 'text/javascript'),
-})
-
       setLoaded(true)
     } catch (e) {
       console.error('FFmpeg load error:', e)
@@ -45,7 +34,7 @@ await ffmpeg.load({
     const inputName = 'input.' + file.name.split('.').pop()
     const outputName = 'output.mp4'
 
-    await ffmpeg.writeFile(inputName, await fetchFile(file))
+    ffmpeg.FS('writeFile', inputName, await fetchFile(file))
 
     const args = ['-i', inputName]
 
@@ -93,13 +82,13 @@ await ffmpeg.load({
     args.push(outputName)
 
     setProgress(0)
-    await ffmpeg.exec(args)
+    await ffmpeg.run(...args)
 
-    const data = await ffmpeg.readFile(outputName)
+    const data = ffmpeg.FS('readFile', outputName)
     const blob = new Blob([data.buffer], { type: 'video/mp4' })
 
-    await ffmpeg.deleteFile(inputName)
-    await ffmpeg.deleteFile(outputName)
+    ffmpeg.FS('unlink', inputName)
+    ffmpeg.FS('unlink', outputName)
 
     return blob
   }, [loaded])
