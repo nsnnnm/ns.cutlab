@@ -472,7 +472,30 @@ function MultiTrackTimeline({ clips, setClips, texts, setTexts, images, setImage
   const scrollRef = useRef(null)
   const rulerTicks = Math.ceil(totalDuration) + 2
 
-  // Seek on ruler click
+  // ── Wheel → horizontal scroll ──────────────────────────────
+  useEffect(() => {
+    const el = scrollRef.current
+    if (!el) return
+    const onWheel = (e) => {
+      e.preventDefault()
+      el.scrollLeft += Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY
+    }
+    el.addEventListener('wheel', onWheel, { passive: false })
+    return () => el.removeEventListener('wheel', onWheel)
+  }, [])
+
+  // ── Auto-scroll playhead into view ────────────────────────
+  useEffect(() => {
+    const el = scrollRef.current
+    if (!el) return
+    const x = LABEL_W + currentTime * zoom
+    const viewLeft = el.scrollLeft
+    const viewRight = viewLeft + el.clientWidth
+    if (x > viewRight - 60) el.scrollLeft = x - el.clientWidth + 120
+    else if (x < viewLeft + LABEL_W + 10) el.scrollLeft = Math.max(0, x - LABEL_W - 20)
+  }, [currentTime, zoom])
+
+  // ── Seek on ruler/track click ──────────────────────────────
   const handleRulerClick = (e) => {
     if (!scrollRef.current) return
     const rect = scrollRef.current.getBoundingClientRect()
@@ -480,39 +503,34 @@ function MultiTrackTimeline({ clips, setClips, texts, setTexts, images, setImage
     onSeek(Math.max(0, x / zoom))
   }
 
-  // Drag item on track
-  const startDrag = (e, type, id, field) => {
+  // ── Drag item (grab from exact position) ──────────────────
+  const startDrag = (e, type, id, field, itemStartTime) => {
     e.stopPropagation()
-    const startX = e.clientX
-    const getItem = () => {
-      if (type==='clip') return clips.find(c=>c.id===id)
-      if (type==='text') return texts.find(t=>t.id===id)
-      if (type==='image') return images.find(i=>i.id===id)
-      if (type==='audio') return audioTracks.find(a=>a.id===id)
-    }
-    const origVal = getItem()?.[field] || 0
+    e.preventDefault()
+    const el = scrollRef.current
+    const rect = el?.getBoundingClientRect()
+    // How far into the item did the user click?
+    const clickX = e.clientX - (rect?.left || 0) + (el?.scrollLeft || 0) - LABEL_W
+    const grabOffset = clickX - itemStartTime * zoom
 
     const onMove = (me) => {
-      const dx = me.clientX - startX
-      const newVal = Math.max(0, origVal + dx / zoom)
-      const update = (setter) => setter(p => p.map(item => item.id===id ? {...item, [field]: newVal} : item))
-      if (type==='clip') update(setClips)
-      if (type==='text') update(setTexts)
-      if (type==='image') update(setImages)
-      if (type==='audio') update(setAudioTracks)
+      const mx = me.clientX - (rect?.left || 0) + (el?.scrollLeft || 0) - LABEL_W
+      const newVal = Math.max(0, (mx - grabOffset) / zoom)
+      const upd = (setter) => setter(p => p.map(item => item.id===id ? {...item, [field]: newVal} : item))
+      if (type==='clip') upd(setClips)
+      if (type==='text') upd(setTexts)
+      if (type==='image') upd(setImages)
+      if (type==='audio') upd(setAudioTracks)
     }
-    const onUp = () => {
-      saveHistory()
-      window.removeEventListener('mousemove', onMove)
-      window.removeEventListener('mouseup', onUp)
-    }
+    const onUp = () => { saveHistory(); window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp) }
     window.addEventListener('mousemove', onMove)
     window.addEventListener('mouseup', onUp)
   }
 
-  // Resize item (right edge drag)
+  // ── Resize item (right edge) ───────────────────────────────
   const startResize = (e, type, id, field) => {
     e.stopPropagation()
+    e.preventDefault()
     const startX = e.clientX
     const getItem = () => {
       if (type==='text') return texts.find(t=>t.id===id)
@@ -521,15 +539,13 @@ function MultiTrackTimeline({ clips, setClips, texts, setTexts, images, setImage
       if (type==='clip') return clips.find(c=>c.id===id)
     }
     const origVal = getItem()?.[field] || 0
-
     const onMove = (me) => {
-      const dx = me.clientX - startX
-      const newVal = Math.max(0, origVal + dx / zoom)
-      const update = (setter) => setter(p => p.map(item => item.id===id ? {...item, [field]: newVal} : item))
-      if (type==='text') update(setTexts)
-      if (type==='image') update(setImages)
-      if (type==='audio') update(setAudioTracks)
-      if (type==='clip') update(setClips)
+      const newVal = Math.max(0.1, origVal + (me.clientX - startX) / zoom)
+      const upd = (setter) => setter(p => p.map(item => item.id===id ? {...item, [field]: newVal} : item))
+      if (type==='text') upd(setTexts)
+      if (type==='image') upd(setImages)
+      if (type==='audio') upd(setAudioTracks)
+      if (type==='clip') upd(setClips)
     }
     const onUp = () => { saveHistory(); window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp) }
     window.addEventListener('mousemove', onMove)
@@ -565,7 +581,7 @@ function MultiTrackTimeline({ clips, setClips, texts, setTexts, images, setImage
               return (
                 <TrackItem key={clip.id} left={left} width={w} color="var(--blue)" selected={isSel}
                   label={clip.name} thumbnail={clip.thumbnail}
-                  onMouseDown={e => { setSelectedItem({type:'clip',id:clip.id}); setActiveClipId(clip.id); startDrag(e,'clip',clip.id,'startTime') }}
+                  onMouseDown={e => { setSelectedItem({type:'clip',id:clip.id}); setActiveClipId(clip.id); startDrag(e,'clip',clip.id,'startTime', clip.startTime) }}
                   onResizeRight={e => startResize(e,'clip',clip.id,'trimEnd')}
                   onDelete={() => { saveHistory(); setClips(p=>p.filter(c=>c.id!==clip.id)) }}
                 />
@@ -581,7 +597,7 @@ function MultiTrackTimeline({ clips, setClips, texts, setTexts, images, setImage
               return (
                 <TrackItem key={t.id} left={left} width={w} color="var(--accent)" selected={selectedItem?.id===t.id}
                   label={t.content || '(空)'}
-                  onMouseDown={e => { setSelectedItem({type:'text',id:t.id}); setActiveTab_cb('text'); startDrag(e,'text',t.id,'startTime') }}
+                  onMouseDown={e => { setSelectedItem({type:'text',id:t.id}); setActiveTab_cb('text'); startDrag(e,'text',t.id,'startTime', t.startTime) }}
                   onResizeRight={e => startResize(e,'text',t.id,'endTime')}
                   onDelete={() => { saveHistory(); setTexts(p=>p.filter(x=>x.id!==t.id)) }}
                 />
@@ -597,7 +613,7 @@ function MultiTrackTimeline({ clips, setClips, texts, setTexts, images, setImage
               return (
                 <TrackItem key={img.id} left={left} width={w} color="var(--orange)" selected={selectedItem?.id===img.id}
                   label={img.name} thumbnail={img.url}
-                  onMouseDown={e => { setSelectedItem({type:'image',id:img.id}); startDrag(e,'image',img.id,'startTime') }}
+                  onMouseDown={e => { setSelectedItem({type:'image',id:img.id}); startDrag(e,'image',img.id,'startTime', img.startTime) }}
                   onResizeRight={e => startResize(e,'image',img.id,'endTime')}
                   onDelete={() => { saveHistory(); setImages(p=>p.filter(x=>x.id!==img.id)) }}
                 />
@@ -613,7 +629,7 @@ function MultiTrackTimeline({ clips, setClips, texts, setTexts, images, setImage
               return (
                 <TrackItem key={track.id} left={left} width={w} color="var(--green)" selected={selectedItem?.id===track.id}
                   label={'♪ '+track.name}
-                  onMouseDown={e => { setSelectedItem({type:'audio',id:track.id}); startDrag(e,'audio',track.id,'startTime') }}
+                  onMouseDown={e => { setSelectedItem({type:'audio',id:track.id}); startDrag(e,'audio',track.id,'startTime', track.startTime||0) }}
                   onResizeRight={e => startResize(e,'audio',track.id,'duration')}
                   onDelete={() => { saveHistory(); setAudioTracks(p=>p.filter(x=>x.id!==track.id)) }}
                 />
@@ -653,18 +669,17 @@ function TrackRow({ label, color, children, onAdd, accept }) {
 }
 
 function TrackItem({ left, width, color, selected, label, thumbnail, onMouseDown, onResizeRight, onDelete }) {
-  const alpha = color.replace('var(--','').replace(')','')
   return (
     <div
       onMouseDown={onMouseDown}
-      style={{ position:'absolute', left, top:3, height:TRACK_H-6, width, borderRadius:4, border:`1.5px solid ${selected?color:'rgba(255,255,255,0.15)'}`, background:`${selected?'rgba(255,255,255,0.1)':'rgba(255,255,255,0.05)'}`, cursor:'grab', overflow:'hidden', display:'flex', alignItems:'center', userSelect:'none' }}
+      style={{ position:'absolute', left, top:3, height:TRACK_H-6, width, borderRadius:4, border:`1.5px solid ${selected?color:'rgba(255,255,255,0.15)'}`, background:selected?'rgba(255,255,255,0.1)':'rgba(255,255,255,0.05)', cursor:'grab', overflow:'hidden', display:'flex', alignItems:'center', userSelect:'none' }}
     >
-      {thumbnail && <img src={thumbnail} alt="" style={{ height:'100%', width:'auto', opacity:0.4, flexShrink:0 }} />}
-      <span style={{ fontFamily:'var(--mono)', fontSize:9, color, padding:'0 5px', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', flex:1 }}>{label}</span>
+      {thumbnail && <img src={thumbnail} alt="" draggable={false} style={{ height:'100%', width:'auto', opacity:0.4, flexShrink:0, pointerEvents:'none' }} />}
+      <span style={{ fontFamily:'var(--mono)', fontSize:9, color, padding:'0 5px', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', flex:1, pointerEvents:'none' }}>{label}</span>
       {/* Right resize handle */}
-      <div onMouseDown={onResizeRight} style={{ position:'absolute', right:0, top:0, bottom:0, width:6, cursor:'ew-resize', background:`rgba(255,255,255,0.1)`, borderRadius:'0 4px 4px 0' }} />
+      <div onMouseDown={onResizeRight} style={{ position:'absolute', right:0, top:0, bottom:0, width:8, cursor:'ew-resize', background:'rgba(255,255,255,0.12)', borderRadius:'0 4px 4px 0' }} />
       {/* Delete */}
-      <button onMouseDown={e=>e.stopPropagation()} onClick={onDelete} style={{ position:'absolute', top:2, right:8, width:13, height:13, borderRadius:'50%', background:'rgba(255,69,96,0.75)', color:'#fff', fontSize:8, display:'flex', alignItems:'center', justifyContent:'center', zIndex:5 }}>×</button>
+      <button onMouseDown={e=>e.stopPropagation()} onClick={onDelete} style={{ position:'absolute', top:2, right:10, width:13, height:13, borderRadius:'50%', background:'rgba(255,69,96,0.8)', color:'#fff', fontSize:8, display:'flex', alignItems:'center', justifyContent:'center', zIndex:5 }}>×</button>
     </div>
   )
 }
