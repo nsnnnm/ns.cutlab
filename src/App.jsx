@@ -218,9 +218,12 @@ export default function App() {
       const url = URL.createObjectURL(file)
       const ext = file.name.split('.').pop().toLowerCase() || 'mp4'
       const id = crypto.randomUUID()
+      // Get duration first with a dedicated element
       const duration = await getVideoDuration(url)
+      // Thumbnail uses separate element, won't affect duration
       const thumbnail = await getVideoThumbnail(url)
-      newClips.push({ id, file, ext, name: file.name, url, duration, trimStart:0, trimEnd:duration, startTime:0, thumbnail, speed:1 })
+      if (duration <= 0) continue // skip broken files
+      newClips.push({ id, file, ext, name: file.name, url, duration, trimStart: 0, trimEnd: duration, startTime: 0, thumbnail, speed: 1 })
     }
     setClips(prev => {
       const next = [...prev, ...newClips]
@@ -575,13 +578,15 @@ function MultiTrackTimeline({ clips, setClips, texts, setTexts, images, setImage
           {/* Track: Video */}
           <TrackRow label="動画" color="var(--blue)" onAdd={onAddVideo} accept="video/*">
             {clips.map((clip, idx) => {
-              const left = LABEL_W + clip.startTime * zoom + clips.slice(0,idx).reduce((s,c)=>s+(c.trimEnd-c.trimStart),0)*zoom
+              // Each clip sits right after the previous one (sequential), no per-clip startTime offset
+              const offset = clips.slice(0,idx).reduce((s,c)=>s+(c.trimEnd-c.trimStart),0)
+              const left = LABEL_W + offset * zoom
               const w = Math.max((clip.trimEnd - clip.trimStart) * zoom, 4)
               const isSel = selectedItem?.id === clip.id
               return (
                 <TrackItem key={clip.id} left={left} width={w} color="var(--blue)" selected={isSel}
                   label={clip.name} thumbnail={clip.thumbnail}
-                  onMouseDown={e => { setSelectedItem({type:'clip',id:clip.id}); setActiveClipId(clip.id); startDrag(e,'clip',clip.id,'startTime', clip.startTime) }}
+                  onMouseDown={e => { setSelectedItem({type:'clip',id:clip.id}); setActiveClipId(clip.id); startDrag(e,'clip',clip.id,'startTime', offset) }}
                   onResizeRight={e => startResize(e,'clip',clip.id,'trimEnd')}
                   onDelete={() => { saveHistory(); setClips(p=>p.filter(c=>c.id!==clip.id)) }}
                 />
@@ -923,16 +928,35 @@ function fmt(s) {
 function sdiff(v) { const d=Math.round((v-1)*100); return d>=0?`+${d}`:`${d}` }
 
 function getVideoDuration(url) {
-  return new Promise(r=>{ const v=document.createElement('video'); v.src=url; v.onloadedmetadata=()=>r(v.duration); v.onerror=()=>r(0) })
+  return new Promise(r => {
+    const v = document.createElement('video')
+    v.preload = 'metadata'
+    v.onloadedmetadata = () => { r(v.duration); v.src = '' }
+    v.onerror = () => r(0)
+    v.src = url
+  })
 }
 function getAudioDuration(url) {
-  return new Promise(r=>{ const a=new Audio(); a.src=url; a.onloadedmetadata=()=>r(a.duration); a.onerror=()=>r(60) })
+  return new Promise(r => {
+    const a = new Audio()
+    a.onloadedmetadata = () => r(a.duration)
+    a.onerror = () => r(60)
+    a.src = url
+  })
 }
 function getVideoThumbnail(url) {
-  return new Promise(r=>{
-    const v=document.createElement('video'),c=document.createElement('canvas')
-    c.width=80;c.height=45;v.src=url;v.currentTime=0.5
-    v.onseeked=()=>{ c.getContext('2d').drawImage(v,0,0,80,45); r(c.toDataURL('image/jpeg',0.6)) }
-    v.onerror=()=>r(null)
+  return new Promise(r => {
+    const v = document.createElement('video')
+    const c = document.createElement('canvas')
+    c.width = 80; c.height = 45
+    v.preload = 'auto'
+    v.muted = true
+    v.onloadeddata = () => { v.currentTime = Math.min(1, v.duration * 0.1) }
+    v.onseeked = () => {
+      try { c.getContext('2d').drawImage(v, 0, 0, 80, 45); r(c.toDataURL('image/jpeg', 0.6)) } catch { r(null) }
+      v.src = ''
+    }
+    v.onerror = () => r(null)
+    v.src = url
   })
 }
