@@ -1,4 +1,3 @@
-cat > src/hooks/useFFmpeg.js << 'EOF'
 import { useState, useRef, useCallback } from 'react'
 import { FFmpeg } from '@ffmpeg/ffmpeg'
 import { fetchFile } from '@ffmpeg/util'
@@ -106,4 +105,3 @@ export function useFFmpeg() {
 
   return { load, loaded, loading, progress, log, processVideo }
 }
-EOF
