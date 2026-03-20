@@ -1,7 +1,7 @@
 {
   "name": "cutlab-video-editor",
   "private": true,
-  "version": "1.0.0",
+  "version": "2.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -9,15 +9,12 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@ffmpeg/core": "^0.11.0",
-    "@ffmpeg/ffmpeg": "^0.11.6",
-    "@ffmpeg/util": "^0.12.1",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "react-dom": "^18.3.1",
+    "@ffmpeg/ffmpeg": "0.11.6",
+    "@ffmpeg/core": "0.11.0"
   },
   "devDependencies": {
-    "@types/react": "^18.3.1",
-    "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^4.3.1",
     "vite": "^5.4.0"
   }
