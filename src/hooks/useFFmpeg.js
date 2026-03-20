@@ -1,6 +1,5 @@
 import { useState, useRef, useCallback } from 'react'
 import { FFmpeg } from '@ffmpeg/ffmpeg'
-import { fetchFile } from '@ffmpeg/util'
 
 export function useFFmpeg() {
   const ffmpegRef = useRef(null)
@@ -23,11 +22,13 @@ export function useFFmpeg() {
         setLog(message)
       })
 
-      await ffmpeg.load({
-        coreURL: 'https://cdn.jsdelivr.net/npm/@ffmpeg/core-mt@0.12.6/dist/umd/ffmpeg-core.js',
-        wasmURL: 'https://cdn.jsdelivr.net/npm/@ffmpeg/core-mt@0.12.6/dist/umd/ffmpeg-core.wasm',
-        workerURL: 'https://cdn.jsdelivr.net/npm/@ffmpeg/core-mt@0.12.6/dist/umd/ffmpeg-core.worker.js',
-      })
+      const { toBlobURL } = await import('@ffmpeg/util')
+const baseURL = 'https://cdn.jsdelivr.net/npm/@ffmpeg/core-mt@0.12.6/dist/umd'
+await ffmpeg.load({
+  coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
+  wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
+  workerURL: await toBlobURL(`${baseURL}/ffmpeg-core.worker.js`, 'text/javascript'),
+})
 
       setLoaded(true)
     } catch (e) {
