@@ -1,0 +1,28 @@
+name = "cutlab-worker"
+main = "worker/index.js"
+compatibility_date = "2024-01-01"
+compatibility_flags = ["nodejs_compat"]
+
+# Workers の設定
+[limits]
+cpu_ms = 50
+
+# KV Namespace (ジョブメタデータ保存)
+# デプロイ前に `wrangler kv:namespace create JOB_KV` で作成してください
+[[kv_namespaces]]
+binding = "JOB_KV"
+id = "YOUR_KV_NAMESPACE_ID"          # ← wrangler で作成後に置き換え
+
+# R2 Bucket (動画ストレージ)
+# デプロイ前に `wrangler r2 bucket create cutlab-videos` で作成してください
+[[r2_buckets]]
+binding = "VIDEO_BUCKET"
+bucket_name = "cutlab-videos"
+
+# ルーティング (カスタムドメインを使う場合)
+# [[routes]]
+# pattern = "api.yourdomain.com/*"
+# zone_name = "yourdomain.com"
+
+[env.production]
+name = "cutlab-worker-production"
