@@ -1169,8 +1169,6 @@ const var_r  = 'var(--r)'
 const var_r2 = 'var(--r2)'
 
 // ── Shared UI ─────────────────────────────────────────────────
-const var_r  = 'var(--r)'
-const var_r2 = 'var(--r2)'
 
 function PHead({title,children}){
   return(
