@@ -452,20 +452,8 @@ function AppHeader({loaded,loading,onLoad,processing,progress,onExport,clipsCoun
         </button>
       </div>
 
-      {/* Right: status + export */}
+      {/* Right: export */}
       <div style={{display:'flex',gap:8,alignItems:'center'}}>
-        {loaded&&(
-          <div style={{display:'flex',alignItems:'center',gap:5,padding:'3px 8px',background:'rgba(39,201,106,0.1)',border:'1px solid rgba(39,201,106,0.2)',borderRadius:4}}>
-            <div style={{width:5,height:5,borderRadius:'50%',background:'var(--green)',boxShadow:'0 0 6px var(--green)'}}/>
-            <span style={{fontFamily:'var(--mono)',fontSize:10,color:'var(--green)',fontWeight:500}}>WASM</span>
-          </div>
-        )}
-        {!loaded&&(
-          <button className="btn btn-subtle" onClick={onLoad} disabled={loading} style={{fontSize:11,gap:6}}>
-            {loading?<span className="anim-spin"><IconCpu size={12}/></span>:<IconCpu size={12}/>}
-            {loading?'読込中':'FFmpeg 読込'}
-          </button>
-        )}
         {clipsCount>0&&(
           <button className="btn btn-accent" onClick={onExport} disabled={processing} style={{gap:6}}>
             {processing?<span className="anim-spin"><IconSettings size={12}/></span>:<IconSettings size={12}/>}
@@ -1169,6 +1157,8 @@ const var_r  = 'var(--r)'
 const var_r2 = 'var(--r2)'
 
 // ── Shared UI ─────────────────────────────────────────────────
+const var_r  = 'var(--r)'
+const var_r2 = 'var(--r2)'
 
 function PHead({title,children}){
   return(
