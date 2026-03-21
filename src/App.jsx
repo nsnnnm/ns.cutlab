@@ -781,7 +781,7 @@ function TRow({label,color,icon,children,onAdd,accept}){
           </button>
         )}
       </div>
-      <div style={{position:'relative',flex:1,background:`repeating-linear-gradient(90deg,transparent,transparent ${zoom-1}px,rgba(255,255,255,0.015) ${zoom-1}px,rgba(255,255,255,0.015) ${zoom}px)`}}>{children}</div>
+      <div style={{position:'relative',flex:1,background:'repeating-linear-gradient(90deg,transparent,transparent 79px,rgba(255,255,255,0.015) 79px,rgba(255,255,255,0.015) 80px)'}}>{children}</div>
     </div>
   )
 }
@@ -789,7 +789,7 @@ function TRow({label,color,icon,children,onAdd,accept}){
 function TItem({left,width,color,selected,label,thumb,muted,onMouseDown,onResizeRight,onDelete,onContextMenu}){
   return(
     <div onMouseDown={onMouseDown} onContextMenu={onContextMenu}
-      style={{position:'absolute',left,top:4,height:TH-8,width,borderRadius:5,border:`1.5px solid ${selected?color:'rgba(255,255,255,0.08)'}`,background:selected?`color-mix(in srgb, ${color} 15%, transparent)`:'rgba(255,255,255,0.03)',cursor:'grab',overflow:'hidden',display:'flex',alignItems:'center',userSelect:'none',opacity:muted?0.45:1,transition:'border-color 0.1s,background 0.1s'}}>
+      style={{position:'absolute',left,top:4,height:TH-8,width,borderRadius:5,border:`1.5px solid ${selected?color:'rgba(255,255,255,0.08)'}`,background:selected?'rgba(255,255,255,0.07)':'rgba(255,255,255,0.03)',cursor:'grab',overflow:'hidden',display:'flex',alignItems:'center',userSelect:'none',opacity:muted?0.45:1,transition:'border-color 0.1s,background 0.1s'}}>
       {thumb&&<img src={thumb} alt="" draggable={false} style={{height:'100%',width:'auto',opacity:0.35,flexShrink:0,pointerEvents:'none'}}/>}
       <span style={{fontFamily:'var(--mono)',fontSize:9,color,padding:'0 6px',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',flex:1,pointerEvents:'none',fontWeight:500}}>
         {muted?'🔇 ':''}{label}
